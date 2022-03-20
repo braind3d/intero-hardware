@@ -1,55 +1,83 @@
 import time
 import RPi.GPIO as GPIO
+from RPLCD import CharLCD
+from pi74HC595 import pi74HC595
+
 
 # Display pins
 SDI   = 17
 RCLK  = 18
 SRCLK = 27
 
+digit_selection_pins = (5, 20, 21, 6)
+
 # Constants
 CODE_LEN = 4
+SHIFT_REG_LEN = 8
 
-identification_code = 2
+#  Shoud come from server conn/socket
+identification_code = 136
 
-# Functions to control display
-def separate_four_digits(code):
-    four_digit_code = '{:04d}'.format(code)
-    return [int(digit) for digit in str(four_digit_code)]
-
-def parse_verification_code(digit_array):
-    hex_string = list()
-    for digit in CODE_LEN:
-        hex_string.append('0x{:02x}'.format(hex_string(digit)))
-    return hex_string
-
-def display_digit(digit):
-    for bit in range(0, 8):
-		GPIO.output(SDI, 0x80 & (digit << bit))
-		GPIO.output(SRCLK, GPIO.HIGH)
-		time.sleep(0.001)
-		GPIO.output(SRCLK, GPIO.LOW)
-    GPIO.output(RCLK, GPIO.HIGH)
-    time.sleep(0.001)
-    GPIO.output(RCLK, GPIO.LOW)
-
+# general utils
 def display_gpio_setup():
-	GPIO.setmode(GPIO.BCM)
-	GPIO.setup(SDI, GPIO.OUT, initial=GPIO.LOW)
-	GPIO.setup(RCLK, GPIO.OUT, initial=GPIO.LOW)
-	GPIO.setup(SRCLK, GPIO.OUT, initial=GPIO.LOW)
-
-def display_verification_code():
-    identification_code_array = parse_verification_code(separate_four_digits(identification_code))
-    for digit in identification_code_array:
-        display_digit(digit)
-        time.sleep(0.5)
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(SDI, GPIO.OUT)
+    GPIO.setup(RCLK, GPIO.OUT)
+    GPIO.setup(SRCLK, GPIO.OUT)
+    for i in digit_selection_pins:
+        GPIO.setup(i, GPIO.OUT)
 
 def destroy():
-	GPIO.cleanup()
+    GPIO.cleanup()
+
+def clearDisplay():
+    for bit in range(SHIFT_REG_LEN):
+        GPIO.output(SDI, GPIO.HIGH)
+        GPIO.output(SRCLK, GPIO.HIGH)
+        GPIO.output(SRCLK, GPIO.LOW)
+    GPIO.output(RCLK, GPIO.HIGH)
+    GPIO.output(RCLK, GPIO.LOW)    
+
+
+def parse_verification_code(code):
+    four_digit_code = '{:04d}'.format(code)
+    a = [int(digit) for digit in four_digit_code]
+    return four_digit_code
+
+def pickDigit(digit):
+    for bit in digit_selection_pins:
+        GPIO.output(bit,GPIO.LOW)
+    GPIO.output(digit_selection_pins[digit], GPIO.HIGH)
+
+def display_digit(digit):
+    for bit in range(SHIFT_REG_LEN):
+        GPIO.output(SDI, 0x80 & (digit << bit))
+        GPIO.output(SRCLK, GPIO.HIGH)
+        GPIO.output(SRCLK, GPIO.LOW)
+    GPIO.output(RCLK, GPIO.HIGH)
+    GPIO.output(RCLK, GPIO.LOW)
+
+
+def display_verification_code(identification_code):
+    identification_code_array = parse_verification_code(identification_code)
+    while True:
+        # for i in range (CODE_LEN):
+        #     clearDisplay() 
+        #     pickDigit(i)
+        #     #shift_register.set_by_int(identification_code_array[i])
+        #     display_digit(identification_code_array[i])
+        lcd.cursor_pos = (0, 6) 
+        lcd.write_string(identification_code_array)
 
 if __name__ == '__main__':
-	display_gpio_setup()
-	try:
-		print(separate_four_digits(identification_code))
-	except KeyboardInterrupt:
-		destroy()
+    display_gpio_setup()
+    shift_register = pi74HC595(SDI, RCLK, SRCLK)
+    lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=21, pin_e=20, pins_data=[5, 6, 13, 19])
+    try:
+        display_verification_code(identification_code)
+    except KeyboardInterrupt:
+        destroy()
+
+# GPIO.setmode(GPIO.BCM)
+# time.sleep(2)
+# lcd.clear()

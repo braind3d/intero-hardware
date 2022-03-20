@@ -13,7 +13,13 @@ def destroy():
 
 def parse_verification_code(code):
     four_digit_code = '{:04d}'.format(code)
+    a = [int(digit) for digit in four_digit_code]
     return four_digit_code
+
+def pickDigit(digit):
+    for bit in digit_selection_pins:
+        GPIO.output(bit,GPIO.LOW)
+    GPIO.output(digit_selection_pins[digit], GPIO.HIGH)
 
 def display_verification_code(identification_code):
     identification_code_array = parse_verification_code(identification_code)
